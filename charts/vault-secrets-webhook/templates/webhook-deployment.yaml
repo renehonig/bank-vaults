@@ -36,6 +36,9 @@ spec:
       {{- if .Values.hostNetwork}}
       hostNetwork: {{ .Values.hostNetwork}}
       {{- end }}
+      {{- with .Values.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
       serviceAccountName: {{ template "vault-secrets-webhook.serviceAccountName" . }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
@@ -52,6 +55,10 @@ spec:
       imagePullSecrets:
 {{ toYaml .Values.image.imagePullSecrets | indent 8 }}
       {{- end }}
+{{- if .Values.initContainers }}
+      initContainers:
+{{ toYaml .Values.initContainers | indent 8}}
+{{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ include "vault-secrets-webhook.bank-vaults.version" . }}"

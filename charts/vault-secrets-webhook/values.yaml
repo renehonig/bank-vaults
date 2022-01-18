@@ -67,6 +67,13 @@ env:
   # VAULT_ENV_MEMORY_REQUEST:
   # VAULT_ENV_CPU_LIMIT:
   # VAULT_ENV_MEMORY_LIMIT
+  # VAULT_ENV_LOG_SERVER:
+
+initContainers: []
+  ## Containers, which are run before the app containers are started.
+  # - name: init-myservice
+  #   image: busybox
+  #   command: ['sh', '-c', 'until nslookup myservice; do echo waiting for myservice; sleep 2; done;']
 
 metrics:
   enabled: false
@@ -152,6 +159,11 @@ namespaceSelector:
       operator: NotIn
       values:
         - kube-system
+    # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubernetes-io-metadata-name
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+        - kube-system
   # matchLabels:
   #   vault-injection: enabled
 
@@ -173,3 +185,10 @@ podDisruptionBudget:
 timeoutSeconds: false
 
 hostNetwork: false
+
+# If you're using celium (CNI) and you are required to set hostNetwork to true
+# then pods with webhooks must set the dnsPolicy to "ClusterFirstWithHostNet"
+dnsPolicy: ""
+
+# Override cluster version
+kubeVersion: ""

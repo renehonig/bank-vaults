@@ -32,13 +32,7 @@ helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
 helm upgrade --install vault-operator banzaicloud-stable/vault-operator
 ```
 
-To install the chart backed with a cluster-wide Etcd Operator, use the following:
-
-```bash
-helm upgrade --install vault-operator . \
---set=etcd-operator.enabled=true \
---set=etcd-operator.etcdOperator.commandArgs.cluster-wide=true
-```
+**Please note that the etcd-operator has been deprecated for a long time (chart and code as well), and the last version of the chart is not installable on Kubernetes 1.22 and onwards. We don't offer any kind of support for etcd-operator and automated etcd installations from now.**
 
 ### Helm2 -> Helm3 migration
 
@@ -66,24 +60,24 @@ helm upgrade --install vault-operator banzaicloud-stable/charts/vault-operator
 
 The following table lists the configurable parameters of the vault chart and their default values.
 
-|       Parameter             |           Description                       |                         Default                     |
-|-----------------------------|---------------------------------------------|-----------------------------------------------------|
-| `image.pullPolicy`          | Container pull policy                       | `IfNotPresent`                                      |
-| `image.repository`          | Container image to use                      | `banzaicloud/vault-operator`                        |
-| `image.bankVaultsRepository`| Container image to use for Bank-Vaults      | `banzaicloud/bank-vaults`                           |
-| `image.tag`                 | Container image tag to deploy operator in   | `.Chart.AppVersion`                                 |
-| `image.bankVaultsTag`       | Container image tag to deploy bank-vaults in| `.Chart.AppVersion`                                 |
-| `image.imagePullSecrets`    | Image pull secrets for private repositories | `[]`                                                |
-| `replicaCount`              | k8s replicas                                | `1`                                                 |
-| `resources.requests.cpu`    | Container requested CPU                     | `100m`                                              |
-| `resources.requests.memory` | Container requested memory                  | `128Mi`                                             |
-| `resources.limits.cpu`      | Container CPU limit                         | `100m`                                              |
-| `resources.limits.memory`   | Container memory limit                      | `256Mi`                                             |
-| `crdAnnotations`            | Annotations for the Vault CRD               | `{}`                                                |
-| `etcd-operator.enabled`     | Install etcd operator as well               | `false`                                             |
-| `psp.enabled`               | Deploy PSP resources                        | `false`                                             |
-| `psp.vaultSA`               | Used service account for vault              | `vault`                                             |
-
+| Parameter                    | Description                                              | Default                      |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------- |
+| `image.pullPolicy`           | Container pull policy                                    | `IfNotPresent`               |
+| `image.repository`           | Container image to use                                   | `banzaicloud/vault-operator` |
+| `image.bankVaultsRepository` | Container image to use for Bank-Vaults                   | `banzaicloud/bank-vaults`    |
+| `image.tag`                  | Container image tag to deploy operator in                | `.Chart.AppVersion`          |
+| `image.bankVaultsTag`        | Container image tag to deploy bank-vaults in             | `.Chart.AppVersion`          |
+| `image.imagePullSecrets`     | Image pull secrets for private repositories              | `[]`                         |
+| `replicaCount`               | k8s replicas                                             | `1`                          |
+| `resources.requests.cpu`     | Container requested CPU                                  | `100m`                       |
+| `resources.requests.memory`  | Container requested memory                               | `128Mi`                      |
+| `resources.limits.cpu`       | Container CPU limit                                      | `100m`                       |
+| `resources.limits.memory`    | Container memory limit                                   | `256Mi`                      |
+| `crdAnnotations`             | Annotations for the Vault CRD                            | `{}`                         |
+| `securityContext`            | Container security context for vault-operator deployment | `{}`                         |
+| `podSecurityContext`         | Pod security context for vault-operator deployment       | `{}`                         |
+| `psp.enabled`                | Deploy PSP resources                                     | `false`                      |
+| `psp.vaultSA`                | Used service account for vault                           | `vault`                      |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 
@@ -92,7 +86,7 @@ Specify each parameter using the `--set key=value[,key=value]` argument to `helm
 To deploy different Vault configurations (single node, HA, with AWS unsealing, with etcd backend, ...) see: https://github.com/banzaicloud/bank-vaults/tree/master/operator/deploy for more examples.
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/banzaicloud/bank-vaults/master/operator/deploy/cr-etcd-ha.yaml
+kubectl apply -f https://raw.githubusercontent.com/banzaicloud/bank-vaults/master/operator/deploy/cr-raft.yaml
 ```
 
 Once the Vault pods are ready (in HA setup always one is ready), it can be accessed using a `kubectl port-forward`:

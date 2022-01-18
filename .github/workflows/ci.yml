@@ -1,7 +1,7 @@
 name: CI
 on: [pull_request]
 env:
-  GO_VERSION: 1.16
+  GO_VERSION: 1.17
 jobs:
 
   build:
@@ -20,7 +20,7 @@ jobs:
     steps:
 
     - name: Set up Go
-      uses: actions/setup-go@v1
+      uses: actions/setup-go@v2.1.5
       with:
         go-version: ${{ env.GO_VERSION }}
 
@@ -45,24 +45,24 @@ jobs:
       env:
         VAULT_TOKEN: 227e1cce-6bf7-30bb-2d2a-acc854318caf
 
-    - name: Lint Helm charts
-      uses: helm/chart-testing-action@v1.1.0
-      with:
-        command: lint
-        config: charts/testing.yaml
+    - name: Set up chart-testing
+      uses: helm/chart-testing-action@v2.2.0
+
+    - name: Run chart-testing
+      run: ct lint --config charts/testing.yaml
 
   acceptance-test:
     name: Acceptance test
     runs-on: ubuntu-latest
     env:
-      KURUN_VERSION: "0.5.3"
+      KURUN_VERSION: "0.5.5"
       DOCKER_LATEST: 1
       VERSION: latest
 
     steps:
 
     - name: Set up Go
-      uses: actions/setup-go@v1
+      uses: actions/setup-go@v2.1.5
       with:
         go-version: ${{ env.GO_VERSION }}
 

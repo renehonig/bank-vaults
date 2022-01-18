@@ -9,7 +9,7 @@
   <a href="https://hub.docker.com/r/banzaicloud/bank-vaults/">
     <img src="https://img.shields.io/docker/pulls/banzaicloud/bank-vaults.svg?style=shield" alt="Docker Pulls">
   </a>
-  
+
   <a href="https://godoc.org/github.com/banzaicloud/bank-vaults">
     <img src="https://godoc.org/github.com/banzaicloud/bank-vaults?status.svg" alt="GoDoc">
   </a>
@@ -64,22 +64,9 @@ Bank-Vaults is a core part of [Banzai Cloud Pipeline](https://github.com/banzaic
 
 ## Installing
 
-You usually don't need to use the CLI directly, rather you should install the charts and create Vault instances with the operator and use the webhook inside Kubernetes.
+You usually don't need to use the CLI directly, rather you should install the charts and create Vault instances with the operator and use the webhook inside Kubernetes to mutate Kubernetes resources.
 
-To grab the CLI binary go to the [releases](https://github.com/banzaicloud/bank-vaults/releases) page and download it.
-
-On macOS, you can directly Homebrew the CLI:
-
-```
-$ brew install banzaicloud/tap/bank-vaults
-```
-
-Alternatively, fetch the source and compile it using `go get`:
-
-```shell
-go get github.com/banzaicloud/bank-vaults/cmd/bank-vaults
-go get github.com/banzaicloud/bank-vaults/cmd/vault-env
-```
+To grab the `bank-vaults` and `vault-env` CLI binaries go to the [releases](https://github.com/banzaicloud/bank-vaults/releases) page and download them.
 
 ## Documentation
 
@@ -95,14 +82,14 @@ documentation](https://banzaicloud.com/docs/bank-vaults/contributing/).
 
 ### Community Support
 
-If you encounter any problems that is not addressed in our documentation, [open an issue](https://github.com/banzaicloud/bank-vaults/issues) or talk to us on the [Banzai Cloud Slack channel #Bank-Vaults](https://pages.banzaicloud.com/invite-slack).
+If you encounter any problems that is not addressed in our documentation, [open an issue](https://github.com/banzaicloud/bank-vaults/issues) or talk to us on the [Banzai Cloud Slack channel #Bank-Vaults](https://banzaicloud.com/invite-slack/).
 
 If you find this project useful, help us:
 
 - Support the development of this project and star this repo! :star:
-- If you use Bank-Vaults in a production environment, add yourself to the list of production [adopters](https://github.com/banzaicloud/bank-vaults/blob/master/ADOPTERS.md).:metal: <br> 
+- If you use Bank-Vaults in a production environment, add yourself to the list of production [adopters](https://github.com/banzaicloud/bank-vaults/blob/master/ADOPTERS.md).:metal: <br>
 - Help new users with issues they may encounter :muscle:
-- Send a pull request with your new features and bug fixes :rocket: 
+- Send a pull request with your new features and bug fixes :rocket:
 
 ### Commercial Support
 
@@ -110,7 +97,7 @@ If you are using Bank-Vaults in a production environment and [require commercial
 
 ### Engineering Blog
 
-To be up-to-date with Bank-Vaults and the other open source and commercial [products of Banzai Cloud, subscribe to our blog](https://pages.banzaicloud.com/sign-up-for-the-banzai-cloud-newsletter/).
+To be up-to-date with Bank-Vaults and the other open source and commercial [products of Banzai Cloud, read our blog](https://banzaicloud.com/blog/).
 
 ## Credits
 

@@ -52,14 +52,16 @@ func NewData(cas int, data map[string]interface{}) map[string]interface{} {
 }
 
 type clientOptions struct {
-	url        string
-	role       string
-	authPath   string
-	tokenPath  string
-	token      string
-	timeout    time.Duration
-	logger     Logger
-	authMethod ClientAuthMethod
+	url            string
+	role           string
+	authPath       string
+	tokenPath      string
+	token          string
+	timeout        time.Duration
+	logger         Logger
+	authMethod     ClientAuthMethod
+	existingSecret string
+	vaultNamespace string
 }
 
 // ClientOption configures a Vault client using the functional options paradigm popularized by Rob Pike and Dave Cheney.
@@ -132,6 +134,19 @@ func (co ClientAuthMethod) apply(o *clientOptions) {
 	o.authMethod = co
 }
 
+type ExistingSecret string
+
+func (co ExistingSecret) apply(o *clientOptions) {
+	o.existingSecret = string(co)
+}
+
+// Vault Enterprise Namespace (not Kubernetes namespace)
+type VaultNamespace string
+
+func (co VaultNamespace) apply(o *clientOptions) {
+	o.vaultNamespace = string(co)
+}
+
 const (
 	// AWSEC2AuthMethod is used for the Vault AWS EC2 auth method
 	// as described here: https://www.vaultproject.io/docs/auth/aws#ec2-auth-method
@@ -156,6 +171,9 @@ const (
 	// as described here:
 	// - https://www.vaultproject.io/docs/auth/azure
 	AzureMSIAuthMethod ClientAuthMethod = "azure"
+
+	// NamespacedSecretAuthMethod is used for per namespace secrets
+	NamespacedSecretAuthMethod ClientAuthMethod = "namespaced"
 )
 
 // Client is a Vault client with Kubernetes support, token automatic renewing and
@@ -309,6 +327,11 @@ func NewClientFromRawClient(rawClient *vaultapi.Client, opts ...ClientOption) (*
 		}
 	}
 
+	// Set vault namespace if defined
+	if o.vaultNamespace != "" {
+		rawClient.SetNamespace(o.vaultNamespace)
+	}
+
 	// Default timeout
 	if o.timeout == 0 {
 		o.timeout = 10 * time.Second
@@ -452,9 +475,28 @@ func NewClientFromRawClient(rawClient *vaultapi.Client, opts ...ClientOption) (*
 					}, nil
 				}
 
+			case NamespacedSecretAuthMethod:
+				loginDataFunc = func() (map[string]interface{}, error) {
+					if len(o.existingSecret) > 0 {
+						return map[string]interface{}{
+							"jwt":  o.existingSecret,
+							"role": o.role,
+						}, nil
+					}
+
+					jwt, err := ioutil.ReadFile(jwtFile)
+					if err != nil {
+						return nil, err
+					}
+
+					return map[string]interface{}{
+						"jwt":  string(jwt),
+						"role": o.role,
+					}, nil
+				}
+
 			default:
 				loginDataFunc = func() (map[string]interface{}, error) {
-					// Projected SA JWTs do expire, so we need to move the reading logic into the loop
 					jwt, err := ioutil.ReadFile(jwtFile)
 					if err != nil {
 						return nil, err

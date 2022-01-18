@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/slok/kubewebhook/v2/pkg/model"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -48,6 +49,10 @@ type VaultConfig struct {
 	CtCPU                       resource.Quantity
 	CtMemory                    resource.Quantity
 	PspAllowPrivilegeEscalation bool
+	RunAsNonRoot                bool
+	RunAsUser                   int64
+	RunAsGroup                  int64
+	ReadOnlyRootFilesystem      bool
 	IgnoreMissingSecrets        string
 	VaultEnvPassThrough         string
 	ConfigfilePath              string
@@ -64,6 +69,7 @@ type VaultConfig struct {
 	AgentImagePullPolicy        corev1.PullPolicy
 	EnvImage                    string
 	EnvImagePullPolicy          corev1.PullPolicy
+	EnvLogServer                string
 	Skip                        bool
 	VaultEnvFromPath            string
 	TokenAuthMount              string
@@ -72,10 +78,16 @@ type VaultConfig struct {
 	EnvCPULimit                 resource.Quantity
 	EnvMemoryLimit              resource.Quantity
 	VaultNamespace              string
+	VaultServiceAccount         string
+	ObjectNamespace             string
+	MutateProbes                bool
 }
 
-func parseVaultConfig(obj metav1.Object) VaultConfig {
-	var vaultConfig VaultConfig
+func parseVaultConfig(obj metav1.Object, ar *model.AdmissionReview) VaultConfig {
+	vaultConfig := VaultConfig{
+		ObjectNamespace: ar.Namespace,
+	}
+
 	annotations := obj.GetAnnotations()
 
 	if val := annotations["vault.security.banzaicloud.io/mutate"]; val == "skip" {
@@ -115,6 +127,13 @@ func parseVaultConfig(obj metav1.Object) VaultConfig {
 		vaultConfig.Path = val
 	} else {
 		vaultConfig.Path = viper.GetString("vault_path")
+	}
+
+	// TODO: Check for flag to verify we want to use namespace-local SAs instead of the vault webhook namespaces SA
+	if val, ok := annotations["vault.security.banzaicloud.io/vault-serviceaccount"]; ok {
+		vaultConfig.VaultServiceAccount = val
+	} else {
+		vaultConfig.VaultServiceAccount = viper.GetString("vault_serviceaccount")
 	}
 
 	if val, ok := annotations["vault.security.banzaicloud.io/vault-skip-verify"]; ok {
@@ -221,6 +240,30 @@ func parseVaultConfig(obj metav1.Object) VaultConfig {
 		vaultConfig.PspAllowPrivilegeEscalation, _ = strconv.ParseBool(viper.GetString("psp_allow_privilege_escalation"))
 	}
 
+	if val, ok := annotations["vault.security.banzaicloud.io/run-as-non-root"]; ok {
+		vaultConfig.RunAsNonRoot, _ = strconv.ParseBool(val)
+	} else {
+		vaultConfig.RunAsNonRoot, _ = strconv.ParseBool(viper.GetString("run_as_non_root"))
+	}
+
+	if val, ok := annotations["vault.security.banzaicloud.io/run-as-user"]; ok {
+		vaultConfig.RunAsUser, _ = strconv.ParseInt(val, 10, 64)
+	} else {
+		vaultConfig.RunAsUser, _ = strconv.ParseInt(viper.GetString("run_as_user"), 0, 64)
+	}
+
+	if val, ok := annotations["vault.security.banzaicloud.io/run-as-group"]; ok {
+		vaultConfig.RunAsGroup, _ = strconv.ParseInt(val, 10, 64)
+	} else {
+		vaultConfig.RunAsGroup, _ = strconv.ParseInt(viper.GetString("run_as_group"), 0, 64)
+	}
+
+	if val, ok := annotations["vault.security.banzaicloud.io/readonly-root-fs"]; ok {
+		vaultConfig.ReadOnlyRootFilesystem, _ = strconv.ParseBool(val)
+	} else {
+		vaultConfig.ReadOnlyRootFilesystem, _ = strconv.ParseBool(viper.GetString("readonly_root_fs"))
+	}
+
 	if val, ok := annotations["vault.security.banzaicloud.io/mutate-configmap"]; ok {
 		vaultConfig.MutateConfigMap, _ = strconv.ParseBool(val)
 	} else {
@@ -292,6 +335,9 @@ func parseVaultConfig(obj metav1.Object) VaultConfig {
 	} else {
 		vaultConfig.EnvImage = viper.GetString("vault_env_image")
 	}
+
+	vaultConfig.EnvLogServer = viper.GetString("VAULT_ENV_LOG_SERVER")
+
 	if val, ok := annotations["vault.security.banzaicloud.io/vault-env-image-pull-policy"]; ok {
 		vaultConfig.EnvImagePullPolicy = getPullPolicy(val)
 	} else {
@@ -345,6 +391,12 @@ func parseVaultConfig(obj metav1.Object) VaultConfig {
 		vaultConfig.EnvMemoryLimit = resource.MustParse("64Mi")
 	}
 
+	if val, ok := annotations["vault.security.banzaicloud.io/mutate-probes"]; ok {
+		vaultConfig.MutateProbes, _ = strconv.ParseBool(val)
+	} else {
+		vaultConfig.MutateProbes = false
+	}
+
 	return vaultConfig
 }
 
@@ -379,6 +431,10 @@ func SetConfigDefaults() {
 	viper.SetDefault("vault_env_daemon", "false")
 	viper.SetDefault("vault_ct_share_process_namespace", "")
 	viper.SetDefault("psp_allow_privilege_escalation", "false")
+	viper.SetDefault("run_as_non_root", "false")
+	viper.SetDefault("run_as_user", "0")
+	viper.SetDefault("run_as_group", "0")
+	viper.SetDefault("readonly_root_fs", "false")
 	viper.SetDefault("vault_ignore_missing_secrets", "false")
 	viper.SetDefault("vault_env_passthrough", "")
 	viper.SetDefault("mutate_configmap", "false")
@@ -396,6 +452,7 @@ func SetConfigDefaults() {
 	viper.SetDefault("VAULT_ENV_MEMORY_REQUEST", "")
 	viper.SetDefault("VAULT_ENV_CPU_LIMIT", "")
 	viper.SetDefault("VAULT_ENV_MEMORY_LIMIT", "")
+	viper.SetDefault("VAULT_ENV_LOG_SERVER", "")
 	viper.SetDefault("VAULT_NAMESPACE", "")
 	viper.AutomaticEnv()
 }

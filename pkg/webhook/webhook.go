@@ -46,7 +46,7 @@ type MutatingWebhook struct {
 }
 
 func (mw *MutatingWebhook) VaultSecretsMutator(ctx context.Context, ar *model.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
-	vaultConfig := parseVaultConfig(obj)
+	vaultConfig := parseVaultConfig(obj, ar)
 
 	if vaultConfig.Skip {
 		return &mutating.MutatorResult{}, nil
@@ -54,7 +54,7 @@ func (mw *MutatingWebhook) VaultSecretsMutator(ctx context.Context, ar *model.Ad
 
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		return &mutating.MutatorResult{MutatedObject: v}, mw.MutatePod(ctx, v, vaultConfig, ar.Namespace, ar.DryRun)
+		return &mutating.MutatorResult{MutatedObject: v}, mw.MutatePod(ctx, v, vaultConfig, ar.DryRun)
 
 	case *corev1.Secret:
 		return &mutating.MutatorResult{MutatedObject: v}, mw.MutateSecret(v, vaultConfig)
@@ -207,12 +207,35 @@ func (mw *MutatingWebhook) newVaultClient(vaultConfig VaultConfig) (*vault.Clien
 		clientTLSConfig.RootCAs = pool
 	}
 
+	if vaultConfig.VaultServiceAccount != "" {
+		sa, err := mw.k8sClient.CoreV1().ServiceAccounts(vaultConfig.ObjectNamespace).Get(context.Background(), vaultConfig.VaultServiceAccount, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to retrieve specified service account on namespace "+vaultConfig.ObjectNamespace)
+		}
+
+		secret, err := mw.k8sClient.CoreV1().Secrets(vaultConfig.ObjectNamespace).Get(context.Background(), sa.Secrets[0].Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to retrieve secret for service account "+sa.Secrets[0].Name+" in namespace "+vaultConfig.ObjectNamespace)
+		}
+
+		return vault.NewClientFromConfig(
+			clientConfig,
+			vault.ClientRole(vaultConfig.Role),
+			vault.ClientAuthPath(vaultConfig.Path),
+			vault.NamespacedSecretAuthMethod,
+			vault.ClientLogger(logrusadapter.NewFromEntry(mw.logger)),
+			vault.ExistingSecret(secret.Data["token"]),
+			vault.VaultNamespace(vaultConfig.VaultNamespace),
+		)
+	}
+
 	return vault.NewClientFromConfig(
 		clientConfig,
 		vault.ClientRole(vaultConfig.Role),
 		vault.ClientAuthPath(vaultConfig.Path),
 		vault.ClientAuthMethod(vaultConfig.AuthMethod),
 		vault.ClientLogger(logrusadapter.NewFromEntry(mw.logger)),
+		vault.VaultNamespace(vaultConfig.VaultNamespace),
 	)
 }
 
