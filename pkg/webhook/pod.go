@@ -48,7 +48,7 @@ auto_auth {
                 }
         }
 }`
-	vaultAgentUID int64 = 100
+	vaultAgentUID int64 = 0
 
 	VaultEnvVolumeName = "vault-env"
 )
@@ -263,7 +263,7 @@ func (mw *MutatingWebhook) mutateContainers(ctx context.Context, containers []co
 
 		// the container has no explicitly specified command
 		if len(args) == 0 {
-			imageConfig, err := mw.registry.GetImageConfig(ctx, mw.k8sClient, vaultConfig.ObjectNamespace, &container, podSpec) // nolint:gosec
+			imageConfig, err := mw.registry.GetImageConfig(ctx, mw.k8sClient, vaultConfig.ObjectNamespace, vaultConfig.RegistrySkipVerify, &container, podSpec) // nolint:gosec
 			if err != nil {
 				return false, err
 			}
@@ -817,8 +817,16 @@ func getBaseSecurityContext(podSecurityContext *corev1.PodSecurityContext, vault
 	context := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &vaultConfig.PspAllowPrivilegeEscalation,
 		RunAsNonRoot:             &vaultConfig.RunAsNonRoot,
+		RunAsUser:                &vaultConfig.RunAsUser,
 		ReadOnlyRootFilesystem:   &vaultConfig.ReadOnlyRootFilesystem,
 		Capabilities: &corev1.Capabilities{
+			Add: []corev1.Capability{
+				"CHOWN",
+				"SETFCAP",
+				"SETGID",
+				"SETPCAP",
+				"SETUID",
+			},
 			Drop: []corev1.Capability{
 				"ALL",
 			},

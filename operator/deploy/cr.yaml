@@ -91,6 +91,11 @@ spec:
   # Define a list of namespaces or use ["*"] for all namespaces.
   caNamespaces:
     - "vswh"
+    
+  # Support for adding hostnames and IPs to the generated CA certificate.
+  # tlsAdditionalHosts:
+  #   - vault2.example.com
+  #   - 192.168.20.20
 
   # Describe where you would like to store the Vault unseal keys and root token.
   unsealConfig:
@@ -98,6 +103,9 @@ spec:
       # The preFlightChecks flag enables unseal and root token storage tests
       # This is true by default
       preFlightChecks: true
+      # The storeRootToken flag enables storing of root token in chosen storage
+      # This is true by default
+      storeRootToken: true
     kubernetes:
       secretNamespace: default
 
@@ -130,6 +138,27 @@ spec:
         rules: path "pki/*" {
           capabilities = ["create", "read", "update", "delete", "list"]
           }
+
+    groups:
+      - name: admin1
+        policies:
+          - allow_secrets
+        metadata:
+          privileged: true
+        type: external
+      - name: admin2
+        policies:
+          - allow_secrets
+        metadata:
+          privileged: true
+        type: external
+
+    group-aliases:
+      - name: admin1
+        mountpath: token
+        group: admin1
+
+
     auth:
       - type: kubernetes
         roles:

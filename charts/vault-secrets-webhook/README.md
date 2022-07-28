@@ -83,7 +83,7 @@ $ helm upgrade --namespace vswh --install vswh banzaicloud-stable/vault-secrets-
 
 ### About GKE Private Clusters
 
-When Google configure the control plane for private clusters, they automatically configure VPC peering between your Kubernetes cluster’s network in a separate Google managed project.
+When Google configures the control plane for private clusters, they automatically configure VPC peering between your Kubernetes cluster’s network in a separate Google managed project.
 
 The auto-generated rules **only** open ports 10250 and 443 between masters and nodes. This means that to use the webhook component with a GKE private cluster, you must configure an additional firewall rule to allow your masters CIDR to access your webhook pod using the port 8443.
 
@@ -127,6 +127,15 @@ The following tables lists configurable parameters of the vault-secrets-webhook 
 | volumes                            | extra volume definitions                                                      | `[]`                                                     |
 | volumeMounts                       | extra volume mounts                                                           | `[]`                                                     |
 | configMapMutation                  | enable injecting values from Vault to ConfigMaps                              | `false`                                                  |
+| secretsMutation                    | enable injecting values from Vault to Secrets                                 | `true`                                                   |
+| pods.objectSelector                | object selector to use - ( overrides root ObjectSelector )                    | `{}`                                                     |
+| pods.namespaceSelector             | namespace selector to use - ( overrides root namespaceSelector )              | `{}`                                                     |
+| secrets.objectSelector             | object selector to use - ( overrides root ObjectSelector )                    | `{}`                                                     |
+| secrets.namespaceSelector          | namespace selector to use - ( overrides root namespaceSelector )              | `{}`                                                     |
+| configMaps.objectSelector          | object selector to use - ( overrides root ObjectSelector )                    | `{}`                                                     |
+| configMaps.namespaceSelector       | namespace selector to use - ( overrides root namespaceSelector )              | `{}`                                                     |
+| customResources.objectSelector     | object selector to use - ( overrides root ObjectSelector )                    | `{}`                                                     |
+| customResources.namespaceSelector  | namespace selector to use - ( overrides root namespaceSelector )              | `{}`                                                     |
 | customResourceMutations            | list of CustomResources to inject values from Vault                           | `[]`                                                     |
 | podDisruptionBudget.enabled        | enable PodDisruptionBudget                                                    | `true`                                                   |
 | podDisruptionBudget.minAvailable   | represents the number of Pods that must be available (integer or percentage)  | `1`                                                      |

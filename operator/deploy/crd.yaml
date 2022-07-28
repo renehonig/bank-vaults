@@ -956,6 +956,8 @@ spec:
                 type: boolean
               statsdImage:
                 type: string
+              statsdConfig:
+                type: string
               tlsAdditionalHosts:
                 items:
                   type: string
@@ -1073,6 +1075,8 @@ spec:
                   options:
                     properties:
                       preFlightChecks:
+                        type: boolean
+                      storeRootToken:
                         type: boolean
                     type: object
                   vault:

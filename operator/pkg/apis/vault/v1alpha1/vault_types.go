@@ -83,7 +83,7 @@ type VaultSpec struct {
 	Image string `json:"image,omitempty"`
 
 	// BankVaultsImage specifies the Bank Vaults image to use for Vault unsealing and configuration
-	// default: banzaicloud/bank-vaults:latest
+	// default: ghcr.io/banzaicloud/bank-vaults:latest
 	BankVaultsImage string `json:"bankVaultsImage,omitempty"`
 
 	// BankVaultsVolumeMounts define some extra Kubernetes Volume mounts for the Bank Vaults Sidecar container.
@@ -97,6 +97,10 @@ type VaultSpec struct {
 	// StatsDImage specifices the StatsD image to use for Vault metrics exportation
 	// default: prom/statsd-exporter:latest
 	StatsDImage string `json:"statsdImage,omitempty"`
+
+	// StatsdConfig specifices the StatsD mapping configuration
+	// default:
+	StatsdConfig string `json:"statsdConfig,omitempty"`
 
 	// FluentDEnabled specifies if FluentD based log exportation should be enabled
 	// default: false
@@ -177,7 +181,7 @@ type VaultSpec struct {
 	// - Plugin Backends
 	// - Policies
 	// - Startup Secrets (Bank Vaults feature)
-	// A documented example: https://github.com/banzaicloud/bank-vaults/blob/master/vault-config.yml
+	// A documented example: https://github.com/banzaicloud/bank-vaults/blob/main/vault-config.yml
 	// default:
 	ExternalConfig extv1beta1.JSON `json:"externalConfig,omitempty"`
 
@@ -453,7 +457,7 @@ func (spec *VaultSpec) GetTLSExpiryThreshold() time.Duration {
 	}
 	duration, err := time.ParseDuration(spec.TLSExpiryThreshold)
 	if err != nil {
-		log.Error(err, "using default treshold due to parse error", "tlsExpiryThreshold", spec.TLSExpiryThreshold)
+		log.Error(err, "using default threshold due to parse error", "tlsExpiryThreshold", spec.TLSExpiryThreshold)
 		return time.Hour * 168
 	}
 	return duration
@@ -757,19 +761,34 @@ type UnsealConfig struct {
 // UnsealOptions represents the common options to all unsealing backends
 type UnsealOptions struct {
 	PreFlightChecks *bool `json:"preFlightChecks,omitempty"`
+	StoreRootToken  *bool `json:"storeRootToken,omitempty"`
 }
 
 func (uso UnsealOptions) ToArgs() []string {
 	args := []string{}
 	if uso.PreFlightChecks == nil || *uso.PreFlightChecks {
-		args = append(args, "--pre-flight-checks", "true")
+		args = append(args, "--pre-flight-checks=true")
 	}
+	if uso.StoreRootToken != nil && !*uso.StoreRootToken {
+		args = append(args, "--store-root-token=false")
+	}
+
 	return args
 }
 
 // ToArgs returns the UnsealConfig as and argument array for bank-vaults
 func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 	args := []string{}
+
+	if usc.Options.PreFlightChecks == nil || *usc.Options.PreFlightChecks {
+		args = append(args,
+			"--pre-flight-checks=true")
+	}
+
+	if usc.Options.StoreRootToken != nil && !*usc.Options.StoreRootToken {
+		args = append(args,
+			"--store-root-token=false")
+	}
 
 	if usc.Google != nil {
 

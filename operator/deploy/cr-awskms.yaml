@@ -5,7 +5,7 @@ metadata:
 spec:
   size: 1
   image: vault:1.6.2
-  bankVaultsImage: banzaicloud/bank-vaults:master
+  bankVaultsImage: banzaicloud/bank-vaults:main
 
   serviceAccount: vault
 
@@ -36,6 +36,9 @@ spec:
       # The preFlightChecks flag enables unseal and root token storage tests
       # This is true by default
       preFlightChecks: true
+      # The storeRootToken flag enables storing of root token in chosen storage
+      # This is true by default
+      storeRootToken: true
     kubernetes:
       secretNamespace: default
 

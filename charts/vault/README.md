@@ -23,11 +23,10 @@ Please also note that scaling to more than 1 replicas can be made successfully o
 
 ## Installing the Chart
 
-To install the chart, use the following, this backs Vault with a Consul cluster:
+To install the chart, use the following:
 
 ```bash
-helm init -c;
-helm repo add banzaicloud-stable http://kubernetes-charts.banzaicloud.com/branch/master
+helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
 helm install banzaicloud-stable/vault
 ```
 
@@ -122,6 +121,7 @@ The following tables lists the configurable parameters of the vault chart and th
 | `image.repository`                   | Container image to use                                                                                          | `vault`                                                                                         |
 | `image.tag`                          | Container image tag to deploy                                                                                   | `1.6.2`                                                                                         |
 | `ingress.enabled`                    | Enables Ingress                                                                                                 | `false`                                                                                         |
+| `ingress.ingressClassName`           | Ingress class name                                                                                              | `""`                                                                                            | 
 | `ingress.annotations`                | Ingress annotations                                                                                             | `{}`                                                                                            |
 | `ingress.hosts`                      | Ingress accepted hostnames with path                                                                            | `[]`                                                                                            |
 | `ingress.tls`                        | Ingress TLS configuration                                                                                       | `[]`                                                                                            |

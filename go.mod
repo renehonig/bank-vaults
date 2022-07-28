@@ -11,18 +11,19 @@ require (
 	github.com/Masterminds/sprig/v3 v3.1.0
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.193
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.4+incompatible
-	github.com/aws/aws-sdk-go v1.35.24
+	github.com/aws/aws-sdk-go v1.42.39
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/banzaicloud/bank-vaults/pkg/sdk v0.0.0
 	github.com/banzaicloud/k8s-objectmatcher v1.5.0
 	github.com/cristalhq/jwt/v3 v3.0.14
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/google/go-cmp v0.5.6
-	github.com/google/go-containerregistry v0.5.1
-	github.com/google/go-containerregistry/pkg/authn/k8schain v0.0.0-20210521160948-0233fcda5d53
+	github.com/google/go-containerregistry v0.8.0
+	github.com/google/go-containerregistry/pkg/authn/k8schain v0.0.0-20220105220605-d9bfbcb99e52
+	github.com/hashicorp/go-uuid v1.0.2
 	github.com/hashicorp/hcl v1.0.0
-	github.com/hashicorp/vault/api v1.3.0
-	github.com/hashicorp/vault/sdk v0.3.0
+	github.com/hashicorp/vault/api v1.4.1
+	github.com/hashicorp/vault/sdk v0.4.1
 	github.com/imdario/mergo v0.3.12
 	github.com/jpillora/backoff v1.0.0
 	github.com/json-iterator/go v1.1.12
