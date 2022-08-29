@@ -24,7 +24,7 @@ spec:
 
   fluentdEnabled: true
   fluentdImage: banzaicloud/fluentd-s3:latest
-  fleuntdConfLocation: "/fluentd/etc"
+  fluentdConfLocation: "/fluentd/etc"
   #fluentdConfFile: "fluent.conf" # default value
   fluentdConfig: |
     <source>
@@ -109,6 +109,7 @@ spec:
             ttl: 1h
     audit:
       - type: file
+        path: file
         description: "File based audit logging device"
         options:
           file_path: /vault/logs/vault.log
