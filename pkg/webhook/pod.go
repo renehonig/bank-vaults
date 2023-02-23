@@ -36,6 +36,7 @@ pid_file = "/tmp/pidfile"
 
 auto_auth {
         method "kubernetes" {
+                namespace = "%s"
                 mount_path = "auth/%s"
                 config = {
                         role = "%s"
@@ -48,8 +49,6 @@ auto_auth {
                 }
         }
 }`
-	vaultAgentUID int64 = 0
-
 	VaultEnvVolumeName = "vault-env"
 )
 
@@ -93,6 +92,14 @@ func (mw *MutatingWebhook) MutatePod(ctx context.Context, pod *corev1.Pod, vault
 			Value: strconv.FormatBool(vaultConfig.SkipVerify),
 		},
 	}
+
+	if vaultConfig.Token != "" {
+		containerEnvVars = append(containerEnvVars, corev1.EnvVar{
+			Name:  "VAULT_TOKEN",
+			Value: vaultConfig.Token,
+		})
+	}
+
 	containerVolMounts := []corev1.VolumeMount{
 		{
 			Name:      VaultEnvVolumeName,
@@ -263,7 +270,7 @@ func (mw *MutatingWebhook) mutateContainers(ctx context.Context, containers []co
 
 		// the container has no explicitly specified command
 		if len(args) == 0 {
-			imageConfig, err := mw.registry.GetImageConfig(ctx, mw.k8sClient, vaultConfig.ObjectNamespace, vaultConfig.RegistrySkipVerify, &container, podSpec) // nolint:gosec
+			imageConfig, err := mw.registry.GetImageConfig(ctx, mw.k8sClient, vaultConfig.ObjectNamespace, vaultConfig.RegistrySkipVerify, &container, podSpec) //nolint:gosec
 			if err != nil {
 				return false, err
 			}
@@ -344,6 +351,13 @@ func (mw *MutatingWebhook) mutateContainers(ctx context.Context, containers []co
 			},
 		}...)
 
+		if vaultConfig.Token != "" {
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  "VAULT_TOKEN",
+				Value: vaultConfig.Token,
+			})
+		}
+
 		if vaultConfig.LogLevel != "" {
 			container.Env = append(container.Env, []corev1.EnvVar{
 				{
@@ -361,20 +375,30 @@ func (mw *MutatingWebhook) mutateContainers(ctx context.Context, containers []co
 				},
 			}...)
 		}
-		if len(vaultConfig.VaultNamespace) > 0 {
-			container.Env = append(container.Env, []corev1.EnvVar{
-				{
-					Name:  "VAULT_NAMESPACE",
-					Value: vaultConfig.VaultNamespace,
-				},
-			}...)
-		}
 
 		if len(vaultConfig.TransitPath) > 0 {
 			container.Env = append(container.Env, []corev1.EnvVar{
 				{
 					Name:  "VAULT_TRANSIT_PATH",
 					Value: vaultConfig.TransitPath,
+				},
+			}...)
+		}
+
+		if vaultConfig.TransitBatchSize > 0 {
+			container.Env = append(container.Env, []corev1.EnvVar{
+				{
+					Name:  "VAULT_TRANSIT_BATCH_SIZE",
+					Value: strconv.Itoa(vaultConfig.TransitBatchSize),
+				},
+			}...)
+		}
+
+		if len(vaultConfig.VaultNamespace) > 0 {
+			container.Env = append(container.Env, []corev1.EnvVar{
+				{
+					Name:  "VAULT_NAMESPACE",
+					Value: vaultConfig.VaultNamespace,
 				},
 			}...)
 		}
@@ -601,11 +625,11 @@ func hasTLSVolume(volumes []corev1.Volume) bool {
 	return false
 }
 
-func getServiceAccountMount(containers []corev1.Container) (serviceAccountMount corev1.VolumeMount) {
+func getServiceAccountMount(containers []corev1.Container, vaultConfig VaultConfig) (serviceAccountMount corev1.VolumeMount) {
 mountSearch:
 	for _, container := range containers {
 		for _, mount := range container.VolumeMounts {
-			if mount.MountPath == "/var/run/secrets/kubernetes.io/serviceaccount" {
+			if mount.MountPath == vaultConfig.ServiceAccountTokenVolumeName {
 				serviceAccountMount = mount
 
 				break mountSearch
@@ -649,8 +673,8 @@ func getInitContainers(originalContainers []corev1.Container, podSecurityContext
 				},
 			},
 		})
-	} else if vaultConfig.UseAgent || vaultConfig.CtConfigMap != "" {
-		serviceAccountMount := getServiceAccountMount(originalContainers)
+	} else if vaultConfig.Token == "" && (vaultConfig.UseAgent || vaultConfig.CtConfigMap != "") {
+		serviceAccountMount := getServiceAccountMount(originalContainers, vaultConfig)
 
 		containerVolMounts = append(containerVolMounts, serviceAccountMount, corev1.VolumeMount{
 			Name:      "vault-agent-config",
@@ -658,8 +682,6 @@ func getInitContainers(originalContainers []corev1.Container, podSecurityContext
 		})
 
 		securityContext := getBaseSecurityContext(podSecurityContext, vaultConfig)
-		runAsUser := vaultAgentUID
-		securityContext.RunAsUser = &runAsUser
 
 		containers = append(containers, corev1.Container{
 			Name:            "vault-agent",
@@ -771,10 +793,7 @@ func getAgentContainers(originalContainers []corev1.Container, podSecurityContex
 		securityContext.Capabilities.Add = append(securityContext.Capabilities.Add, "SYS_PTRACE")
 	}
 
-	runAsUser := vaultAgentUID
-	securityContext.RunAsUser = &runAsUser
-
-	serviceAccountMount := getServiceAccountMount(originalContainers)
+	serviceAccountMount := getServiceAccountMount(originalContainers, vaultConfig)
 
 	containerVolMounts = append(containerVolMounts, serviceAccountMount, corev1.VolumeMount{
 		Name:      "agent-secrets",
@@ -869,7 +888,7 @@ func getConfigMapForVaultAgent(pod *corev1.Pod, vaultConfig VaultConfig) *corev1
 			OwnerReferences: ownerReferences,
 		},
 		Data: map[string]string{
-			"config.hcl": fmt.Sprintf(vaultAgentConfig, vaultConfig.Path, vaultConfig.Role),
+			"config.hcl": fmt.Sprintf(vaultAgentConfig, vaultConfig.VaultNamespace, vaultConfig.Path, vaultConfig.Role),
 		},
 	}
 }

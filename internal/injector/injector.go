@@ -28,6 +28,10 @@ import (
 	"github.com/banzaicloud/bank-vaults/pkg/sdk/vault"
 )
 
+const (
+	MissingSecretsAnnotation = "vault.security.banzaicloud.io/vault-ignore-missing-secrets"
+)
+
 type SecretInjectorFunc func(key, value string)
 
 type SecretRenewer interface {
@@ -37,6 +41,7 @@ type SecretRenewer interface {
 type Config struct {
 	TransitKeyID         string
 	TransitPath          string
+	TransitBatchSize     int
 	IgnoreMissingSecrets bool
 	DaemonMode           bool
 }
@@ -61,9 +66,118 @@ func NewSecretInjector(config Config, client *vault.Client, renewer SecretRenewe
 	}
 }
 
-var inlineMutationRegex = regexp.MustCompile(`\${([>]{0,2}vault:.*?)}`)
+var inlineMutationRegex = regexp.MustCompile(`\${([>]{0,2}vault:.*?#*}?)}`)
+
+func (i SecretInjector) FetchTransitSecrets(secrets []string) (map[string][]byte, error) {
+	if len(i.config.TransitKeyID) == 0 {
+		return map[string][]byte{}, errors.Errorf("found encrypted variable, but transit key ID is empty: %s", "todo")
+	}
+
+	if len(secrets) == 0 {
+		return map[string][]byte{}, nil
+	}
+
+	out, err := i.client.Transit.DecryptBatch(i.config.TransitPath, i.config.TransitKeyID, secrets)
+	for k, v := range out {
+		i.transitCache[k] = v
+	}
+
+	if err != nil {
+		i.logger.Errorln("failed to decrypt variable:", err)
+	}
+
+	return out, nil
+}
+
+func paginate(secrets []string, batchSize int) [][]string {
+	transitSecrets := [][]string{}
+
+	for i := range secrets {
+		if i%batchSize == 0 {
+			transitSecrets = append(transitSecrets, []string{})
+		}
+
+		index := i / batchSize
+
+		transitSecrets[index] = append(transitSecrets[index], secrets[i])
+	}
+
+	return transitSecrets
+}
+
+func (i SecretInjector) preprocessTransitSecrets(references *map[string]string, inject SecretInjectorFunc) error {
+	// use set so that we don't have duplicates
+	secretSet := map[string]bool{}
+
+	for _, value := range *references {
+		// decrypts value with Vault Transit Secret Engine
+		if HasInlineVaultDelimiters(value) {
+			for _, vaultSecretReference := range FindInlineVaultDelimiters(value) {
+				if i.client.Transit.IsEncrypted(vaultSecretReference[1]) {
+					secretSet[vaultSecretReference[1]] = true
+				}
+			}
+		} else if i.client.Transit.IsEncrypted(value) {
+			secretSet[value] = true
+		}
+	}
+
+	// convert back to slice & filter out already-cached secrets
+	secrets := make([]string, 0, len(secretSet))
+	for k := range secretSet {
+		if _, cached := i.transitCache[k]; !cached {
+			secrets = append(secrets, k)
+		}
+	}
+
+	for _, sec := range paginate(secrets, i.config.TransitBatchSize) {
+		_, err := i.FetchTransitSecrets(sec)
+		if err != nil {
+			if !i.config.IgnoreMissingSecrets {
+				return errors.Wrapf(err, "failed to decrypt secret: %s", sec)
+			}
+
+			i.logger.Errorln("failed to decrypt secret:", sec, err)
+		}
+	}
+
+	for name, value := range *references {
+		if HasInlineVaultDelimiters(value) {
+			newValue := value
+			for _, vaultSecretReference := range FindInlineVaultDelimiters(value) {
+				if v, ok := i.transitCache[vaultSecretReference[0]]; ok {
+					newValue = strings.Replace(value, vaultSecretReference[0], string(v), -1)
+				}
+			}
+
+			// Only inject the value if its content has been updated using the transit cache
+			if value != newValue {
+				inject(name, value)
+
+				// Delete the key from the references to avoid a double processing by the old logic
+				delete(*references, name)
+			}
+
+			continue
+		}
+		if i.client.Transit.IsEncrypted(value) {
+			if v, ok := i.transitCache[value]; ok {
+				inject(name, string(v))
+
+				continue
+			}
+		}
+	}
+
+	return nil
+}
 
 func (i SecretInjector) InjectSecretsFromVault(references map[string]string, inject SecretInjectorFunc) error {
+	err := i.preprocessTransitSecrets(&references, inject)
+	if err != nil && !i.config.IgnoreMissingSecrets {
+		return errors.Wrapf(err, "unable to preprocess transit secrets")
+	}
+
 	for name, value := range references {
 		if HasInlineVaultDelimiters(value) {
 			for _, vaultSecretReference := range FindInlineVaultDelimiters(value) {
@@ -167,7 +281,11 @@ func (i SecretInjector) InjectSecretsFromVault(references map[string]string, inj
 				return errors.Errorf("path not found: %s", valuePath)
 			}
 
-			i.logger.Errorf("path not found: %s", valuePath)
+			i.logger.Warnf(
+				"Path not found: %s - We couldn't find a secret path. This is not an error since missing secrets can be ignored according to the configuration you've set (annotation: %s).",
+				valuePath,
+				MissingSecretsAnnotation,
+			)
 
 			continue
 		}
@@ -221,7 +339,11 @@ func (i SecretInjector) InjectSecretsFromVaultPath(paths string, inject SecretIn
 				return errors.Errorf("path not found: %s", valuePath)
 			}
 
-			i.logger.Errorln("path not found:", valuePath)
+			i.logger.Warnf(
+				"Path not found: %s - We couldn't find a secret path. This is not an error since missing secrets can be ignored according to the configuration you've set (annotation: %s).",
+				valuePath,
+				MissingSecretsAnnotation,
+			)
 
 			continue
 		}
@@ -284,7 +406,7 @@ func (i SecretInjector) readVaultPath(path, versionOrData string, update bool) (
 		secretData = cast.ToStringMap(v2Data)
 
 		// Check if a given version of a path is destroyed
-		metadata := secret.Data["metadata"].(map[string]interface{}) // nolint:forcetypeassert
+		metadata := secret.Data["metadata"].(map[string]interface{}) //nolint:forcetypeassert
 		if metadata["destroyed"].(bool) {
 			i.logger.Warnln("version of secret has been permanently destroyed version:", versionOrData, "path:", path)
 		}

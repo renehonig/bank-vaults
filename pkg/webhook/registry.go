@@ -108,10 +108,12 @@ func (r *Registry) GetImageConfig(
 	// Try to find matching registry credentials in the default imagePullSecret if one was provided.
 	// Otherwise, cloud credential providers will be tried.
 	defaultImagePullSecretNamespace := viper.GetString("default_image_pull_secret_namespace")
+	defaultImagePullSecretServiceAccount := viper.GetString("default_image_pull_secret_service_account")
 	defaultImagePullSecret := viper.GetString("default_image_pull_secret")
 	if len(containerInfo.ImagePullSecrets) == 0 &&
-		defaultImagePullSecretNamespace != "" && defaultImagePullSecret != "" {
+		defaultImagePullSecretNamespace != "" && defaultImagePullSecret != "" && defaultImagePullSecretServiceAccount != "" {
 		containerInfo.Namespace = defaultImagePullSecretNamespace
+		containerInfo.ServiceAccountName = defaultImagePullSecretServiceAccount
 		containerInfo.ImagePullSecrets = []string{defaultImagePullSecret}
 	}
 
@@ -148,7 +150,7 @@ func getImageConfig(ctx context.Context, client kubernetes.Interface, container 
 
 	if registrySkipVerify {
 		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 		}
 		options = append(options, remote.WithTransport(tr))
 	}

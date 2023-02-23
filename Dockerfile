@@ -1,4 +1,4 @@
-FROM golang:1.19.0-alpine AS builder
+FROM golang:1.19.5-alpine AS builder
 
 RUN apk add --update --no-cache build-base git mercurial
 
@@ -14,7 +14,7 @@ RUN go install ./cmd/template
 RUN go install ./cmd/bank-vaults
 
 
-FROM alpine:3.16.2
+FROM alpine:3.17.2
 
 RUN apk add --no-cache ca-certificates curl \
                        ccid opensc pcsc-lite-libs softhsm

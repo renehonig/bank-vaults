@@ -20,6 +20,7 @@ package injector
 import (
 	"encoding/base64"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -30,6 +31,11 @@ import (
 
 	"github.com/banzaicloud/bank-vaults/pkg/sdk/vault"
 )
+
+func assertKeyDoesNotExist(t *testing.T, m map[string]string, k string) {
+	_, hasKey := m[k]
+	assert.False(t, hasKey)
+}
 
 func TestSecretInjector(t *testing.T) {
 	t.Parallel()
@@ -56,7 +62,7 @@ func TestSecretInjector(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	ciphertext := secret.Data["ciphertext"].(string) // nolint:forcetypeassert
+	ciphertext := secret.Data["ciphertext"].(string) //nolint:forcetypeassert
 
 	_, err = client.RawClient().Logical().Write("secret/data/account", vault.NewData(0, map[string]interface{}{"username": "superusername", "password": "secret"}))
 	assert.NoError(t, err)
@@ -81,16 +87,18 @@ func TestSecretInjector(t *testing.T) {
 		t.Parallel()
 
 		references := map[string]string{
-			"ACCOUNT_PASSWORD":      "vault:secret/data/account#password",
-			"TRANSIT_SECRET":        `>>vault:transit/decrypt/mykey#${.plaintext | b64dec}#{"ciphertext":"` + ciphertext + `"}`,
-			"ROOT_CERT":             ">>vault:pki/root/generate/internal#certificate",
-			"ROOT_CERT_CACHED":      ">>vault:pki/root/generate/internal#certificate",
-			"INLINE_SECRET":         "scheme://${vault:secret/data/account#username}:${vault:secret/data/account#password}@127.0.0.1:8080",
-			"INLINE_DYNAMIC_SECRET": "${>>vault:pki/root/generate/internal#certificate}__${>>vault:pki/root/generate/internal#certificate}",
+			"ACCOUNT_PASSWORD":                "vault:secret/data/account#password",
+			"TRANSIT_SECRET":                  `>>vault:transit/decrypt/mykey#${.plaintext | b64dec}#{"ciphertext":"` + ciphertext + `"}`,
+			"ROOT_CERT":                       ">>vault:pki/root/generate/internal#certificate",
+			"ROOT_CERT_CACHED":                ">>vault:pki/root/generate/internal#certificate",
+			"INLINE_SECRET":                   "scheme://${vault:secret/data/account#username}:${vault:secret/data/account#password}@127.0.0.1:8080",
+			"INLINE_SECRET_EMBEDDED_TEMPLATE": "scheme://${vault:secret/data/account#username}:${vault:secret/data/account#${.password | urlquery}}@127.0.0.1:8080",
+			"INLINE_DYNAMIC_SECRET":           "${>>vault:pki/root/generate/internal#certificate}__${>>vault:pki/root/generate/internal#certificate}",
 		}
 
 		results := map[string]string{}
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -110,9 +118,10 @@ func TestSecretInjector(t *testing.T) {
 		delete(results, "INLINE_DYNAMIC_SECRET")
 
 		assert.Equal(t, map[string]string{
-			"ACCOUNT_PASSWORD": "secret",
-			"TRANSIT_SECRET":   "secret",
-			"INLINE_SECRET":    "scheme://superusername:secret@127.0.0.1:8080",
+			"ACCOUNT_PASSWORD":                "secret",
+			"TRANSIT_SECRET":                  "secret",
+			"INLINE_SECRET":                   "scheme://superusername:secret@127.0.0.1:8080",
+			"INLINE_SECRET_EMBEDDED_TEMPLATE": "scheme://superusername:secret@127.0.0.1:8080",
 		}, results)
 	})
 
@@ -125,6 +134,7 @@ func TestSecretInjector(t *testing.T) {
 
 		results := map[string]string{}
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -141,6 +151,7 @@ func TestSecretInjector(t *testing.T) {
 
 		results := map[string]string{}
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -186,6 +197,7 @@ func TestSecretInjectorFromPath(t *testing.T) {
 		results := map[string]string{}
 
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -205,6 +217,7 @@ func TestSecretInjectorFromPath(t *testing.T) {
 		results := map[string]string{}
 
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -226,6 +239,7 @@ func TestSecretInjectorFromPath(t *testing.T) {
 
 		results := map[string]string{}
 		injectFunc := func(key, value string) {
+			assertKeyDoesNotExist(t, results, key)
 			results[key] = value
 		}
 
@@ -234,4 +248,54 @@ func TestSecretInjectorFromPath(t *testing.T) {
 
 		assert.Equal(t, map[string]string{}, results)
 	})
+}
+
+func TestPaginate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		pageSize int
+		secrets  []string
+		want     [][]string
+	}{
+		{
+			name:     "no secrets",
+			pageSize: 1,
+			secrets:  []string{},
+			want:     [][]string{},
+		},
+		{
+			name:     "page by more values then exist",
+			pageSize: 100,
+			secrets:  []string{"vault:v1:aGVsbG8="},
+			want:     [][]string{{"vault:v1:aGVsbG8="}},
+		},
+		{
+			name:     "pagination works",
+			pageSize: 2,
+			secrets:  []string{"vault:v1:aGVsbG8=", "vault:v2:aGVsbG8=", "vault:v3:aGVsbG8=", "vault:v4:aGVsbG8="},
+			want:     [][]string{{"vault:v1:aGVsbG8=", "vault:v2:aGVsbG8="}, {"vault:v3:aGVsbG8=", "vault:v4:aGVsbG8="}},
+		},
+		{
+			name:     "pagination with remeinder",
+			pageSize: 3,
+			secrets:  []string{"vault:v1:aGVsbG8=", "vault:v2:aGVsbG8=", "vault:v3:aGVsbG8=", "vault:v4:aGVsbG8="},
+			want:     [][]string{{"vault:v1:aGVsbG8=", "vault:v2:aGVsbG8=", "vault:v3:aGVsbG8="}, {"vault:v4:aGVsbG8="}},
+		},
+		{
+			name:     "page size 1",
+			pageSize: 1,
+			secrets:  []string{"vault:v1:aGVsbG8=", "vault:v2:aGVsbG8=", "vault:v3:aGVsbG8=", "vault:v4:aGVsbG8="},
+			want:     [][]string{{"vault:v1:aGVsbG8="}, {"vault:v2:aGVsbG8="}, {"vault:v3:aGVsbG8="}, {"vault:v4:aGVsbG8="}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := paginate(tt.secrets, tt.pageSize)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("paginate() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

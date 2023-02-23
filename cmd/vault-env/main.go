@@ -29,6 +29,7 @@ import (
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/sirupsen/logrus"
 	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
+	"github.com/sirupsen/logrus/hooks/writer"
 	"github.com/spf13/cast"
 	logrusadapter "logur.dev/adapter/logrus"
 
@@ -74,6 +75,7 @@ var sanitizeEnvmap = map[string]envType{
 	"VAULT_AUTH_METHOD":            {login: false},
 	"VAULT_TRANSIT_KEY_ID":         {login: false},
 	"VAULT_TRANSIT_PATH":           {login: false},
+	"VAULT_TRANSIT_BATCH_SIZE":     {login: false},
 	"VAULT_IGNORE_MISSING_SECRETS": {login: false},
 	"VAULT_ENV_PASSTHROUGH":        {login: false},
 	"VAULT_JSON_LOG":               {login: false},
@@ -149,6 +151,29 @@ func main() {
 			log.SetFormatter(&logrus.JSONFormatter{})
 		}
 		logger = log.WithField("app", "vault-env")
+
+		// From https://github.com/sirupsen/logrus/tree/master/hooks/writer#usage
+		// Send all logs to nowhere by default
+		log.SetOutput(ioutil.Discard)
+
+		// Send logs with level higher than warning to stderr
+		log.AddHook(&writer.Hook{
+			Writer: os.Stderr,
+			LogLevels: []logrus.Level{
+				logrus.PanicLevel,
+				logrus.FatalLevel,
+				logrus.ErrorLevel,
+				logrus.WarnLevel,
+			},
+		})
+		// Send info and debug logs to stdout
+		log.AddHook(&writer.Hook{
+			Writer: os.Stdout,
+			LogLevels: []logrus.Level{
+				logrus.InfoLevel,
+				logrus.DebugLevel,
+			},
+		})
 
 		envLogServer := os.Getenv("VAULT_ENV_LOG_SERVER")
 		if envLogServer != "" {
@@ -229,6 +254,7 @@ func main() {
 	config := injector.Config{
 		TransitKeyID:         os.Getenv("VAULT_TRANSIT_KEY_ID"),
 		TransitPath:          os.Getenv("VAULT_TRANSIT_PATH"),
+		TransitBatchSize:     cast.ToInt(os.Getenv("VAULT_TRANSIT_BATCH_SIZE")),
 		DaemonMode:           daemonMode,
 		IgnoreMissingSecrets: ignoreMissingSecrets,
 	}
